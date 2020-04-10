@@ -22,7 +22,8 @@ require 'optparse'
 require 'net/smtp'
 require 'logger'
 require 'date'
-
+require 'rubygems'
+require 'mqtt'
 
 HW_DETECTION_CMD = "cat /proc/asound/cards"
 # You need to replace MICROPHONE with the name of your microphone, as reported
@@ -121,6 +122,9 @@ if options[:verbose]
    logger.debug("Record filename (overwritten): #{RECORD_FILENAME}")
 end
 
+#init mqtt
+client = MQTT::Client.connect('mqtt://127.0.0.1', 1883)
+
 #Starting script part
 loop do
     `/usr/bin/arecord -D plughw:#{options[:microphone]},0 -d #{SAMPLE_DURATION} -f #{FORMAT} -t wav #{RECORD_FILENAME}.wav 2>/dev/null`
@@ -128,11 +132,13 @@ loop do
     out.match(/Maximum amplitude:\s+(.*)/m)
     amplitude = $1.to_f
     print("Detected amplitude: #{amplitude}") if options[:verbose]
+    client.publish('smartHome/noise', amplitude, retain=false)
     if amplitude > THRESHOLD
         print ("Sound detected!!!")
 
 	`lame #{RECORD_FILENAME}.wav #{RECORD_FILENAME}.mp3`
-	`drive upload --file #{RECORD_FILENAME}.mp3`
+#        client.publish('smartHome/noise', amplitude, retain=false)
+#	`drive upload --file #{RECORD_FILENAME}.mp3`
     else
       logger.debug("No sound detected...")
     end
